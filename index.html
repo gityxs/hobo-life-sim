@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <script defer src="https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/alpinejs/3.9.0/cdn.js"></script>
+    <script src="data.js"></script>
+    <script src="actions.js"></script>
+    <script src="cooldown.js"></script>
+    <script src="utils.js"></script>
+    <script src="mastery.js"></script>
+    <script src="gameOver.js"></script>
+    <script src="coinFlip.js"></script>
+    <script src="gapless5.js" language="JavaScript" type="text/javascript"></script>
+    <script src="photo.js"></script>
+    <script src="killer.js"></script>
+    <script src="housing.js"></script>
+    <script src="edu.js"></script>
+    <script src="jobs.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="css2.css"
+        rel="stylesheet">
+    <link rel="icon" href="images/favicon.png">
+    <title>Hobo Life Sim</title>
+</head>
+
+<body x-data="{
+    data: $store.data, 
+    utils: $store.utils, 
+    actions: $store.actions,
+    currentLocation: 'streets',
+    showDisclaimer: true,
+    showMainMenu: false,
+    showGame: false,
+    hasExistingSave: false,
+    startNewGame() {
+        if(confirm('Start a new game? ' + (this.hasExistingSave ? 'This will delete your existing save.' : ''))) {
+            localStorage.removeItem('gameData');
+            this.showMainMenu = false;
+            this.showGame = true;
+            location.reload();
+            this.utils.player.gotoTrack(1);
+            this.utils.player.play();
+        }
+    }
+}" x-init="hasExistingSave = localStorage.getItem('gameData') !== null" class="vStack">
+<script src="chs.js"></script>
+<script src="core.js"></script>
+    <!-- Disclaimer Screen -->
+    <div class="overlay" x-show="showDisclaimer" style="background-color: black; color: white; text-align: center;">
+        <div class="container vStack" style="max-width: 600px; gap: 2rem;">
+            <h1>Disclaimer</h1>
+            <p style="line-height: 1.6;">
+                This game is a work of satire and is not meant to offend or trivialize the serious issue of
+                homelessness.
+                It aims to raise awareness about the challenges faced by homeless individuals while using game mechanics
+                to illustrate systemic barriers and daily struggles. The content is fictional and may not represent all
+                experiences of homelessness.
+            </p>
+            <button
+                @click="showDisclaimer = false; showMainMenu = true; utils.player.gotoTrack(5); utils.player.play();"
+                style="width: fit-content; margin: 0 auto;">
+                Continue
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div class="overlay" x-show="showMainMenu" style="background-color: black;">
+        <!-- Background Video -->
+        <video autoplay loop muted playsinline
+            style="position: fixed; width: 100%; height: 100%; object-fit: cover; z-index: -1; filter: blur(10px) brightness(0.5);">
+            <source src="LoadingScreen.mp4" type="video/mp4">
+        </video>
+
+        <!-- Main Video -->
+        <video autoplay loop muted playsinline style="position: fixed;height: 100%; z-index: 1;">
+            <source src="LoadingScreen.mp4" type="video/mp4">
+        </video>
+
+        <!-- Menu Options -->
+        <div class="container vStack"
+            style="height: 100vh; justify-content: flex-end; padding-bottom: 2rem; position: relative; z-index: 2;">
+            <button @click="showMainMenu = false; showGame = true; utils.player.gotoTrack(1); utils.player.play();"
+                style="width: 200px; margin: 0 auto;">
+                Enter Game
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Content (wrapped in x-show) -->
+    <div x-show="showGame" class="container">
+        <header class="container hStackGrid" style="justify-content: space-between; align-items: start;">
+            <div style="position: relative;">
+                <img :src="$store.photo.returnPlayerPhoto()" alt="Player Photo"
+                    style="width: 5rem; aspect-ratio: 1/1; border-radius: 50%; background-color: rgba(0, 0, 0, 0.1);">
+                <div id="healthBar"></div>
+            </div>
+            <div class="vStack" style="gap: 0.5rem; align-items: end;">
+                <p x-text="`${utils.toCurrency(data.player.money)}`"
+                    style="grid-column: span 2; font-size: 2rem; font-weight: bold;"
+                    :style="{color: data.player.money >= 0 ? 'green' : 'red'}"></p>
+                <p x-html='`<i class="fa-solid fa-arrow-trend-down"></i> ${utils.toCurrency(data.player.dailyExpenses)}`'
+                    style="color: red;"></p>
+                <p x-html='`<i class="fa-solid fa-arrow-trend-up"></i> ${utils.toCurrency(data.player.dailyIncome)}`'
+                    style="color: green;"></p>
+            </div>
+        </header>
+        <!-- Location Navigation -->
+        <nav class="location-nav container">
+            <div class="nav-scroll">
+                <button @click="currentLocation = 'streets'" :class="{ active: currentLocation === 'streets' }">
+                    <i class="fa-solid fa-road"></i>
+                    <span>Streets</span>
+                </button>
+                <button @click="currentLocation = 'marketplace'" :class="{ active: currentLocation === 'marketplace' }"
+                    x-show="data.upgrades.find(u => u.uid === 'nosePlugs').isUnlocked">
+                    <i class="fa-solid fa-store"></i>
+                    <span>Market</span>
+                </button>
+                <button @click="currentLocation = 'mastery'" :class="{ active: currentLocation === 'mastery' }"
+                    x-show="data.mastery.some(m => m.percent > 0)">
+                    <i class="fa-solid fa-trophy"></i>
+                    <span>Mastery</span>
+                </button>
+                <button @click="currentLocation = 'upgrades'" :class="{ active: currentLocation === 'upgrades' }"
+                    x-show="!data.upgrades.every(u => u.isUnlocked)">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>Upgrades</span>
+                </button>
+                <button @click="currentLocation = 'housing'" :class="{ active: currentLocation === 'housing' }"
+                    x-show="data.upgrades.find(u => u.uid === 'buyHousing').isUnlocked">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Housing</span>
+                </button>
+                <button @click="currentLocation = 'education'" :class="{ active: currentLocation === 'education' }"
+                    x-show="data.education.some(e => !e.isUnlocked)">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                    <span>Education</span>
+                </button>
+                <button @click="currentLocation = 'jobs'" :class="{ active: currentLocation === 'jobs' }" x-show="data.education.some(e => e.isUnlocked)">
+                    <i class="fa-solid fa-briefcase"></i>
+                    <span>Jobs</span>
+                </button>
+            </div>
+        </nav>
+        <main class="container vStack" style="gap: 2rem; max-height: 70vh">
+            <!-- The Streets -->
+            <div id="actions" class="hStackGrid" x-show="currentLocation === 'streets'">
+                <div style="grid-column: span 2;" class="hStack">
+                    <i class="fa-solid fa-road"></i>
+                    <h2 style="text-transform: uppercase;">The Streets</h2>
+                </div>
+                <button @click="actions.beg()" :disabled="data.player.energy < 5" data-cooldown="beg">Beg for
+                    Money</button>
+                <button @click="actions.dumpsterDive()" :disabled="data.player.energy < 15"
+                    x-show="data.upgrades.find(u => u.uid === 'nosePlugs').isUnlocked">Dumpster Dive</button>
+                <button @click="actions.busk()" :disabled="data.player.energy < 15" data-cooldown="busk"
+                    x-show="data.upgrades.find(u => u.uid === 'guitar').isUnlocked">Busk</button>
+                <button @click="actions.rest()" :disabled="data.player.energy >= 100">Rest (Skip Day)</button>
+                <button @click="actions.hospital()" :disabled="data.player.energy < 20" data-cooldown="hospital"
+                    x-show="data.upgrades.find(u => u.uid === 'explore').isUnlocked">Visit
+                    Hospital</button>
+                <button @click="actions.doDrugs()" data-cooldown="drugs"
+                    x-show="data.upgrades.find(u => u.uid === 'dealer').isUnlocked">Consume Drugs</button>
+            </div>
+
+            <!-- Marketplace -->
+            <div id="marketplace" class="hStackGrid"
+                x-show="currentLocation === 'marketplace' && data.upgrades.find(u => u.uid === 'nosePlugs').isUnlocked">
+                <div class="hStack" style="grid-column: span 2;">
+                    <h2 style="text-transform: uppercase;">Marketplace</h2>
+                    <i class="fa-solid fa-store"></i>
+                </div>
+                <template x-for="(f, index) in data.findables" :key="index">
+                    <div class="vStackGrid" x-data="{count: 0}">
+                        <div class="hStack" style="justify-content: start;">
+                            <span x-html="f.icon"></span>
+                            <h3 x-text="`${f.name} (${f.count ?? 0})`"></h3>
+                        </div>
+                        <input type="range" x-model="count" min="0" :max="f.count ?? 0">
+                        <p x-text="`${utils.toCurrency(f.worth)}/each + ${utils.toCurrency(f.worth * Alpine.store('mastery').data.find(m => m.uid === 'dumpsterDiving').percent)} mastery bonus`"
+                            style="align-self: end;"></p>
+                        <button x-text="`Sell (x${count})`" :disabled="count < 1"
+                            @click="actions.sellItem(index, count); count = 0"></button>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Mastery -->
+            <div id="mastery" class="hStackGrid"
+                x-show="currentLocation === 'mastery' && data.mastery.some(m => m.percent > 0)">
+                <div class="hStack" style="grid-column: span 2;">
+                    <h2 style="text-transform: uppercase;">Mastery</h2>
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <template x-for="m in data.mastery" :key="m.uid">
+                    <div class="vStackGrid" x-show="m.percent > 0">
+                        <h3 x-text="`${m.name}`"></h3>
+                        <div class="progress"
+                            style="width: 100%; height: 1rem; background-color: #ccc; border-radius: 1rem; overflow: hidden;"
+                            :title="`${m.percent.toFixed(2)}%`">
+                            <div class="progressBar" :style="{width: `${m.percent}%`}"
+                                style="background-color: #00852b; height: 100%;"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Upgrades -->
+            <div id="upgrades" class="hStackGrid"
+                x-show="currentLocation === 'upgrades' && !data.upgrades.every(u => u.isUnlocked)">
+                <div class="hStack" style="grid-column: span 2;">
+                    <i class="fa-solid fa-gear"></i>
+                    <h2 style="text-transform: uppercase;">Upgrades</h2>
+                </div>
+                <div class="vStack" style="grid-column: span 2;">
+                    <template x-for="u in data.upgrades" :key="u.uid">
+                        <div class="vStack" x-show="!u.isUnlocked">
+                            <div class="hStack" style="justify-content: space-between;">
+                                <h3 x-text="`${u.name}`" style="text-wrap: nowrap;"></h3>
+                                <p x-html="`${utils.toCurrency(u.cost)} ${u.dailyExpense > 0 ? `+ <span style='color: red;'>${utils.toCurrency(u.dailyExpense)}/day</span>` : ''}`"
+                                    style="text-align: end; text-wrap: nowrap;"></p>
+                            </div>
+                            <p x-text="`${u.description}`"></p>
+                            <button @click="actions.buyUpgrade(u.uid)"
+                                :disabled="data.player.money < u.cost">Buy</button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Housing -->
+            <div id="housing" class="hStackGrid"
+                x-show="currentLocation === 'housing' && data.upgrades.find(u => u.uid === 'buyHousing').isUnlocked">
+                <div class="hStack" style="grid-column: span 2;">
+                    <h2 style="text-transform: uppercase;">Housing</h2>
+                    <i class="fa-solid fa-house"></i>
+                </div>
+                <template x-for="h in data.housing" :key="h.uid">
+                    <div class="vStackGrid" style="grid-column: span 2;">
+                        <div class="bStack" style="justify-content: space-between;">
+                            <h3 x-text="`${h.name}`"></h3>
+                            <p
+                                x-html="`${utils.toCurrency(h.entryCost)} ${h.dailyCost > 0 ? `<span style='color: red;'>+ ${utils.toCurrency(h.dailyCost)}/day</span>` : ''}`">
+                            </p>
+                        </div>
+                        <button @click="$store.housing.buyHousing(h.uid)"
+                            :disabled="data.player.money < h.entryCost || $store.data.housing.some(h => h.isActive)"
+                            x-show="!h.isActive"
+                            x-text="$store.data.housing.some(h => h.isActive) ? 'Already have a place' : 'Buy'"></button>
+                        <button @click="$store.housing.sellHousing(h.uid)" :disabled="!h.isActive" x-show="h.isActive"
+                            x-text="h.entryCost > 0 ? `Sell (${utils.toCurrency(h.entryCost * 0.3)})` : `Leave`"></button>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Education -->
+            <div id="education" class="hStackGrid"
+                x-show="currentLocation === 'education' && data.education.some(e => !e.isUnlocked)">
+                <div class="hStack" style="grid-column: span 2;">
+                    <h2 style="text-transform: uppercase;">Education</h2>
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div class="vStack" style="grid-column: span 2;">
+                    <template x-for="(e, index) in data.education" :key="e.uid">
+                        <div style="grid-column: span 2;" class="vStack" x-show="!e.isUnlocked">
+                            <div class="vStack" style="grid-column: span 2;">
+                                <div class="hStack" style="justify-content: space-between;">
+                                    <h3 x-text="`${e.name}`"></h3>
+                                    <p x-html="`${utils.toCurrency(e.cost)}`"></p>
+                                </div>
+                                <p x-text="`${e.description}`"></p>
+                            </div>
+                            <div class="vStack" x-show="index === 0 || data.education[index - 1].isUnlocked">
+                                <div class="hStack">
+                                    <button @click="$store.edu.attempt(e.uid)"
+                                        :disabled="data.player.money < e.cost">Attempt</button>
+                                    <button :disabled="e.successRate >= 100 || data.player.energy < 10"
+                                        @click="$store.edu.study(e.uid)">Study</button>
+                                </div>
+                                <p x-text="`Success Rate: ${e.successRate}%`" style="text-align: center;"></p>
+                            </div>
+                            <div class="hStack" x-show="index > 0 && !data.education[index - 1]?.isUnlocked"
+                                style="background-color: rgba(0, 0, 0, 0.1); width: 100%; padding: 1rem; border-radius: 1rem; text-align: center;">
+                                <p
+                                    x-text="`Unlock your ${data.education[index - 1]?.name || 'previous education'} to unlock this education`">
+                                </p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Jobs -->
+            <div id="jobs" class="hStack" x-show="currentLocation === 'jobs'">
+                <div class="vStack" id="fixScroll">
+                    <h2>Jobs</h2>
+                    <div class="vStack">
+                        <!-- Current Job Section -->
+                        <div class="section" x-show="$store.jobs.getCurrentJob()">
+                            <h3>Current Job</h3>
+                            <template x-if="$store.jobs.getCurrentJob()">
+                                <div class="vStack">
+                                    <p x-text="$store.jobs.getCurrentJob().name"></p>
+                                    <p x-text="'Daily Income: $' + $store.jobs.getCurrentJob().dailyIncome"></p>
+                                    <p x-text="'Energy Cost: ' + $store.jobs.getCurrentJob().energyCost"></p>
+                                    <p x-text="'Days Missed: ' + $store.jobs.getCurrentJob().missedDays + '/3'"></p>
+                                    <div class="hStack">
+                                        <button @click="$store.jobs.quitJob($store.jobs.getCurrentJob().uid)">Quit
+                                            Job</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Available Jobs Section -->
+                        <template x-for="education in $store.data.education" :key="education.uid">
+                            <div class="section" x-show="education.isUnlocked">
+                                <h3 x-text="education.name + ' Jobs'"></h3>
+                                <div class="vStack">
+                                    <template x-for="job in $store.jobs.getAvailableJobs(education.uid)" :key="job.uid">
+                                        <div class="job-listing"
+                                            :class="{ 'active': job.isActive, 'cooling-down': job.isCoolingDown }">
+                                            <h4 x-text="job.name"></h4>
+                                            <p x-text="job.description"></p>
+                                            <p x-text="'Daily Income: $' + job.dailyIncome"></p>
+                                            <p x-text="'Energy Cost: ' + job.energyCost"></p>
+                                            <template x-if="job.isCoolingDown">
+                                                <p
+                                                    x-text="'Can reapply in ' + (job.cooldownEndDay - $store.data.day) + ' days'">
+                                                </p>
+                                            </template>
+                                            <button @click="$store.jobs.applyForJob(job.uid)"
+                                                :disabled="job.isActive || job.isCoolingDown"
+                                                x-text="job.isActive ? 'Current Job' : (job.isCoolingDown ? 'Cooling Down' : 'Apply')">
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <footer class="container hStackGrid">
+            <div id="stats" class="hStack" style="grid-column: span 2;">
+                <div class="progress" :title="`Energy: ${data.player.energy}`">
+                    <div class="progressBar" :style="{width: `${data.player.energy}%`}"
+                        style="background-color: #ffe100">
+                        <div class="progressBar" :style="{width:`${data.player.energy - 100}%`}"
+                            style="background-color: #0059ff" x-show="data.player.energy - 100 > 0"></div>
+                    </div>
+                    <i class="fa-solid fa-bolt progressIcon"></i>
+                </div>
+                <div class="progress" title="Health">
+                    <div class="progressBar" :style="{width: `${utils.returnHealth()}%`}"
+                        style="background-color: #ff0000">
+                    </div>
+                    <i class="fa-solid fa-heart progressIcon"></i>
+                </div>
+            </div>
+            <div class="hStack" style="grid-column: span 2;">
+                <p x-text="`Day ${data.day}`"></p>
+                <p x-text="`Age: ${data.player.age.year}.${data.player.age.day}`"></p>
+                <p x-text="`Lifespan: ${data.player.lifespan.year}.${data.player.lifespan.day}`"></p>
+            </div>
+            <div class="hStack" style="grid-column: span 2;" x-show="data.adminMode">
+                <button @click="localStorage.clear(); location.reload()">Reset Data</button>
+                <button @click="utils.player.play(); utils.player.gotoTrack(1)">Play Music</button>
+                <button @click="$store.killer.initiateKiller()">Initiate Killer</button>
+            </div>
+        </footer>
+        <div id="gameOver" x-data="{gameOver: $store.gameOver}" x-show="gameOver.show === true">
+            <div class="vStack container" style="align-items: center; justify-content: center;">
+                <img src="images/gameOver.gif" style="width: 10rem; aspect-ratio: 1/1;">
+                <h1>Game Over</h1>
+                <p x-html="`You have reached the end of your life. <br>Reason: <span style='color: red;'>${gameOver.reason}</span>`"
+                    style="text-align: center;"></p>
+                <button @click="gameOver.show = false; localStorage.clear(); location.reload()">Play Again</button>
+                <p x-text="`Days Survived: ${data.day}`"></p>
+            </div>
+        </div>
+        <div id="coinFlip" x-show="$store.coinFlip.isVisible">
+            <div class="vStack container" style="align-items: center; justify-content: center;">
+                <h1 class="jumpscareText" id="jumpscareText">Think Fast!</h1>
+                <img id="coinImage" style="width: 100%; aspect-ratio: 1/1;">
+                <div class="timer" x-show="$store.coinFlip.choice === null">
+                    <div class="timerBar" :style="{width: `${$store.coinFlip.timerWidth}%`}"></div>
+                </div>
+                <div class="hStack" style="width: 100%;" x-show="$store.coinFlip.choice === null">
+                    <button @click="$store.coinFlip.choice = 'heads';">Heads</button>
+                    <button @click="$store.coinFlip.choice = 'tails';">Tails</button>
+                </div>
+            </div>
+        </div>
+        <div id="dumpsterDive" class="overlay white" x-show="actions.isDiving">
+            <div class="vStack container" style="text-align: center;" id="divingGame">
+                <h1>Dumpster Dive</h1>
+                <p x-text="`Difficulty: ${actions.difficulty?.name || 'Not started'}`"></p>
+                <p x-text="`Bad Squares Left: ${actions.remainingBadSquares}`"></p>
+                <div id="squares" class="hStack" style="flex-wrap: wrap;">
+                    <template x-for="(item, index) in actions.board" :key="index">
+                        <div class="square"
+                            :class="{ revealed: actions.revealedSquares && actions.revealedSquares[index] }"
+                            @click="actions.clickSquare(index)"
+                            x-html="actions.revealedSquares && actions.revealedSquares[index] ? (item === '❌' ? '❌' : (item && item.icon ? item.icon : '')) : ''">
+                        </div>
+                    </template>
+                </div>
+                <button @click="actions.endDiving()" id="endDiving">F*ck This!</button>
+            </div>
+        </div>
+        <div class="overlay" id="killerGame" x-show="$store.killer?.isActive === true" style="display: none;">
+            <div class="container vStack" style="text-align: center;">
+                <h1 x-text="$store.killer?.text || ''" class="jumpscareText" id="killerText"></h1>
+                <img src="images/killer.gif">
+                <div class="progress" id="killerProgressBar" x-show="$store.killer?.hasDecided === false">
+                    <div class="progressBar" style="background-color: #ff0000"></div>
+                </div>
+                <div class="hStack" x-show="$store.killer?.hasDecided === false">
+                    <button @click="$store.killer.fightKiller()">Fight Killer</button>
+                    <button @click="$store.killer.runAway()">Run Away</button>
+                </div>
+            </div>
+        </div>
+        <!-- Work Prompt Overlay -->
+        <div class="overlay white" x-show="$store.jobs.showWorkPrompt" style="z-index: 9999;">
+            <div class="vStack container" style="text-align: center;">
+                <h2>Time for Work!</h2>
+                <template x-if="$store.jobs.getCurrentJob()">
+                    <div class="vStack">
+                        <p x-text="'Your job as a ' + $store.jobs.getCurrentJob().name + ' awaits.'"></p>
+                        <p x-text="'Energy Required: ' + $store.jobs.getCurrentJob().energyCost"></p>
+                        <p x-text="'Daily Income: $' + $store.jobs.getCurrentJob().dailyIncome"></p>
+                        <div class="hStack" style="justify-content: center; gap: 1rem;">
+                            <button @click="$store.jobs.respondToWorkPrompt(true)"
+                                :disabled="$store.data.player.energy < $store.jobs.getCurrentJob().energyCost"
+                                x-text="$store.data.player.energy >= $store.jobs.getCurrentJob().energyCost ? 'Go to Work' : 'Not Enough Energy'">
+                            </button>
+                            <button @click="$store.jobs.respondToWorkPrompt(false)"
+                                style="background-color: #ff4444;">Slack Off</button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+<!--客服 开始-->
+<script src="//g8hh.github.io/static/js/jquery.min.js"></script>
+<link rel="stylesheet" href="//g8hh.github.io/static/css/kf.css" type="text/css" media="screen" charset="utf-8">
+<script src="//g8hh.github.io/static/js/kf.js"></script>
+<!-- 客服 结束 -->
+<!--站长统计-->
+    <div style="display: none">
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?828597e93cee632465679b7ef35edfd5";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>    </div>
+</body>
+
+</html>
